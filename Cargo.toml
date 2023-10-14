@@ -1,0 +1,13 @@
+[package]
+name = "async-fizzbuzz"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix = { version = "0.13", features = ["mailbox_assert"] }
+actix-rt = "2.9"
+futures = "0.3"
+thiserror = "1.0"
+tokio = { version = "1.33", features = ["full"] }
