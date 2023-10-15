@@ -12,13 +12,13 @@ async fn main() {
 
     let mut join_set = JoinSet::new();
 
-    let (fizz_handle, fut) = delayed_try_system(Duration::from_millis(10), 3);
+    let (fizz_handle, fut) = delayed_try_service(Duration::from_millis(10), 3);
     join_set.spawn(fut);
 
-    let (buzz_handle, fut) = delayed_try_system(Duration::from_millis(10), 5);
+    let (buzz_handle, fut) = delayed_try_service(Duration::from_millis(10), 5);
     join_set.spawn(fut);
 
-    let (fizzbuzz_handle, fut) = fizzbuzz_system(fizz_handle, buzz_handle);
+    let (fizzbuzz_handle, fut) = fizzbuzz_service(fizz_handle, buzz_handle);
     join_set.spawn(fut);
 
     (0..20)
@@ -112,7 +112,7 @@ enum ErrorEvent {
     Buzz,
 }
 
-struct FizzBuzzSystem {
+struct FizzBuzzService {
     error_tx: mpsc::Sender<ErrorEvent>,
     count: usize,
     fizz_errors: usize,
@@ -121,7 +121,7 @@ struct FizzBuzzSystem {
     buzz_handle: DelayedTryHandle,
 }
 
-impl FizzBuzzSystem {
+impl FizzBuzzService {
     fn on_request(&mut self, request: FizzBuzzRequest) -> impl 'static + Future<Output = ()> {
         self.count += 1;
 
@@ -178,14 +178,14 @@ impl FizzBuzzSystem {
     }
 }
 
-fn fizzbuzz_system(
+fn fizzbuzz_service(
     fizz_handle: DelayedTryHandle,
     buzz_handle: DelayedTryHandle,
 ) -> (FizzBuzzHandle, impl 'static + Future<Output = ()>) {
     let (main_tx, mut main_rx) = mpsc::channel::<FizzBuzzMessage>(16);
     let (error_tx, mut error_rx) = mpsc::channel::<ErrorEvent>(16);
 
-    let mut system = FizzBuzzSystem {
+    let mut service = FizzBuzzService {
         error_tx,
         count: 0,
         fizz_errors: 0,
@@ -201,11 +201,11 @@ fn fizzbuzz_system(
             tokio::select! {
                 Some(message) = main_rx.recv() => {
                     match message {
-                        FizzBuzzMessage::Reqest(request) => req_futures.push(system.on_request(request)),
-                        FizzBuzzMessage::Stats(request) => system.on_stats(request),
+                        FizzBuzzMessage::Reqest(request) => req_futures.push(service.on_request(request)),
+                        FizzBuzzMessage::Stats(request) => service.on_stats(request),
                     }
                 },
-                Some(evt) = error_rx.recv(), if !req_futures.is_empty() => system.on_error(evt),
+                Some(evt) = error_rx.recv(), if !req_futures.is_empty() => service.on_error(evt),
                 Some(_) = req_futures.next() => (),
                 else => break,
             };
@@ -250,7 +250,7 @@ impl DelayedTryHandle {
     }
 }
 
-fn delayed_try_system(
+fn delayed_try_service(
     delay: Duration,
     ok_every_nth: usize,
 ) -> (DelayedTryHandle, impl Future<Output = ()>) {
@@ -259,7 +259,7 @@ fn delayed_try_system(
     let future = async move {
         let mut num = 0;
         while let Some(req) = rx.recv().await {
-            // Doing some operations that requires exclusive access to system's state
+            // Doing some operations that requires exclusive access to service's state
             num += 1;
             tokio::time::sleep(delay).await;
             if num % ok_every_nth == 0 {

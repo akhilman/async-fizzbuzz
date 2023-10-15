@@ -8,9 +8,9 @@ use tokio::sync::Mutex;
 async fn main() {
     println!("Hello, world!");
 
-    let fizz_addr = DelayesTrySystem::new(Duration::from_millis(10), 3).start();
-    let buzz_addr = DelayesTrySystem::new(Duration::from_millis(10), 5).start();
-    let fizzbuzz_addr = FizzBuzzSystem::new(fizz_addr, buzz_addr).start();
+    let fizz_addr = DelayesTryService::new(Duration::from_millis(10), 3).start();
+    let buzz_addr = DelayesTryService::new(Duration::from_millis(10), 5).start();
+    let fizzbuzz_addr = FizzBuzzService::new(fizz_addr, buzz_addr).start();
 
     (0..20)
         .map(|_| {
@@ -69,16 +69,16 @@ struct FizzFaultNotification;
 #[rtype(result = "()")]
 struct BuzzFaultNotification;
 
-struct FizzBuzzSystem {
+struct FizzBuzzService {
     count: usize,
     fizz_errors: usize,
     buzz_errors: usize,
-    fizz_addr: Addr<DelayesTrySystem>,
-    buzz_addr: Addr<DelayesTrySystem>,
+    fizz_addr: Addr<DelayesTryService>,
+    buzz_addr: Addr<DelayesTryService>,
 }
 
-impl FizzBuzzSystem {
-    fn new(fizz_addr: Addr<DelayesTrySystem>, buzz_addr: Addr<DelayesTrySystem>) -> Self {
+impl FizzBuzzService {
+    fn new(fizz_addr: Addr<DelayesTryService>, buzz_addr: Addr<DelayesTryService>) -> Self {
         Self {
             count: 0,
             fizz_errors: 0,
@@ -89,11 +89,11 @@ impl FizzBuzzSystem {
     }
 }
 
-impl Actor for FizzBuzzSystem {
+impl Actor for FizzBuzzService {
     type Context = Context<Self>;
 }
 
-impl Handler<FizzBuzzRequest> for FizzBuzzSystem {
+impl Handler<FizzBuzzRequest> for FizzBuzzService {
     type Result = ResponseFuture<FizzBuzzResponse>;
 
     fn handle(&mut self, _msg: FizzBuzzRequest, ctx: &mut Self::Context) -> Self::Result {
@@ -133,7 +133,7 @@ impl Handler<FizzBuzzRequest> for FizzBuzzSystem {
     }
 }
 
-impl Handler<StatsRequest> for FizzBuzzSystem {
+impl Handler<StatsRequest> for FizzBuzzService {
     type Result = MessageResult<StatsRequest>;
 
     fn handle(&mut self, _msg: StatsRequest, _ctx: &mut Self::Context) -> Self::Result {
@@ -145,14 +145,14 @@ impl Handler<StatsRequest> for FizzBuzzSystem {
     }
 }
 
-impl Handler<FizzFaultNotification> for FizzBuzzSystem {
+impl Handler<FizzFaultNotification> for FizzBuzzService {
     type Result = ();
 
     fn handle(&mut self, _msg: FizzFaultNotification, _ctx: &mut Self::Context) -> Self::Result {
         self.fizz_errors += 1;
     }
 }
-impl Handler<BuzzFaultNotification> for FizzBuzzSystem {
+impl Handler<BuzzFaultNotification> for FizzBuzzService {
     type Result = ();
 
     fn handle(&mut self, _msg: BuzzFaultNotification, _ctx: &mut Self::Context) -> Self::Result {
@@ -177,13 +177,13 @@ struct DelayedTrySuccess {
 #[error("DelayedTry error")]
 struct DelayedTryError;
 
-struct DelayesTrySystem {
+struct DelayesTryService {
     delay: Duration,
     ok_every_nth: usize,
     count: Arc<Mutex<usize>>,
 }
 
-impl DelayesTrySystem {
+impl DelayesTryService {
     fn new(delay: Duration, ok_every_nth: usize) -> Self {
         Self {
             delay,
@@ -193,11 +193,11 @@ impl DelayesTrySystem {
     }
 }
 
-impl Actor for DelayesTrySystem {
+impl Actor for DelayesTryService {
     type Context = Context<Self>;
 }
 
-impl Handler<DelayedTryRequest> for DelayesTrySystem {
+impl Handler<DelayedTryRequest> for DelayesTryService {
     type Result = ResponseFuture<DelayedTryResponse>;
 
     fn handle(&mut self, _msg: DelayedTryRequest, _ctx: &mut Self::Context) -> Self::Result {
@@ -207,7 +207,7 @@ impl Handler<DelayedTryRequest> for DelayesTrySystem {
 
         Box::pin(async move {
             let mut count = count.lock().await;
-            // Doing some operations that requires exclusive access to system's state
+            // Doing some operations that requires exclusive access to service's state
             *count += 1;
             tokio::time::sleep(delay).await;
             if *count % ok_every_nth == 0 {
