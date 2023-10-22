@@ -122,7 +122,7 @@ struct FizzBuzzService {
 }
 
 impl FizzBuzzService {
-    fn on_request(&mut self, request: FizzBuzzRequest) -> impl 'static + Future<Output = ()> {
+    fn handle_request(&mut self, request: FizzBuzzRequest) -> impl 'static + Future<Output = ()> {
         self.count += 1;
 
         let num = self.count;
@@ -161,7 +161,7 @@ impl FizzBuzzService {
         }
     }
 
-    fn on_stats(&self, request: StatsRequest) {
+    fn handle_stats(&self, request: StatsRequest) {
         let response = StatsResponse {
             request_conut: self.count,
             fizz_errors: self.fizz_errors,
@@ -170,7 +170,7 @@ impl FizzBuzzService {
         request.reply_to.send(response).unwrap();
     }
 
-    fn on_error(&mut self, evt: ErrorEvent) {
+    fn handle_error(&mut self, evt: ErrorEvent) {
         match evt {
             ErrorEvent::Fizz => self.fizz_errors += 1,
             ErrorEvent::Buzz => self.buzz_errors += 1,
@@ -201,11 +201,11 @@ fn fizzbuzz_service(
             tokio::select! {
                 Some(message) = main_rx.recv() => {
                     match message {
-                        FizzBuzzMessage::Reqest(request) => req_futures.push(service.on_request(request)),
-                        FizzBuzzMessage::Stats(request) => service.on_stats(request),
+                        FizzBuzzMessage::Reqest(request) => req_futures.push(service.handle_request(request)),
+                        FizzBuzzMessage::Stats(request) => service.handle_stats(request),
                     }
                 },
-                Some(evt) = error_rx.recv(), if !req_futures.is_empty() => service.on_error(evt),
+                Some(evt) = error_rx.recv(), if !req_futures.is_empty() => service.handle_error(evt),
                 Some(_) = req_futures.next() => (),
                 else => break,
             };
